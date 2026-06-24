@@ -91,7 +91,9 @@
   .b-wa{background:var(--wa);color:#04220f;}
   .b-call{background:var(--bg3);color:var(--text);border:1px solid var(--border)!important;}
   .b-done{background:var(--bg3);color:var(--green);border:1px solid rgba(43,208,122,.4)!important;}
+  .b-close{background:var(--bg3);color:var(--accent2);border:1px solid rgba(232,23,138,.4)!important;}
   .card.done .b-done{color:var(--muted2);border-color:var(--border)!important;}
+  .closedpill{font-size:13px;font-weight:700;color:#82f0b3;background:rgba(43,208,122,.13);border:1px solid rgba(43,208,122,.32);border-radius:11px;padding:10px 12px;margin-bottom:13px;}
   /* states */
   .loading,.empty,.error{text-align:center;padding:56px 22px;color:var(--muted2);}
   .empty{font-size:15px;} .error{color:#ff8589;line-height:1.6;} .error a{color:var(--accent2);font-weight:700;}
@@ -155,8 +157,13 @@
 // Conectado EN VIVO a la base de citas (se actualiza solo)
 const SHEET_ID='1fT8zuEXIS63mZDDHvOLRfWW744SHrOWR_Zd4cp9Pprw';
 const csvUrl=()=>'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&t='+Date.now();
-const DONE_KEY='vam_recompra_done';
-let DONE=new Set(JSON.parse(localStorage.getItem(DONE_KEY)||'[]'));
+let CONTACT=JSON.parse(localStorage.getItem('vam_rc_contact')||'{}');   // {clienteKey:'YYYY-MM-DD'}
+let CLOSED=JSON.parse(localStorage.getItem('vam_rc_closed')||'{}');     // {clienteKey:{monto,date}}
+function todayISO(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function curYM(){return todayISO().slice(0,7);}
+function isDone(k){return !!CONTACT[k];}
+function saveCt(){localStorage.setItem('vam_rc_contact',JSON.stringify(CONTACT));}
+function saveCl(){localStorage.setItem('vam_rc_closed',JSON.stringify(CLOSED));}
 let ROWS=[], FILTER='resumen', STATS={estado:{}};
 const LK='vam_recompra_leads';
 let LCFG=Object.assign({leadsMes:0,cotiz:0,margen:60,ticket:1500},JSON.parse(localStorage.getItem(LK)||'{}'));
@@ -207,10 +214,10 @@ function vencLabel(c){
 function render(){
   var list=document.getElementById('list');
   var arr=ROWS.filter(c=>FILTER==='all'?true:c.bucket===FILTER);
-  arr.sort((a,b)=>(DONE.has(key(a))-DONE.has(key(b))));
+  arr.sort((a,b)=>(isDone(key(a))-isDone(key(b))));
   if(!arr.length){list.innerHTML='<div class="empty">✨ Nada por aquí. ¡Lista limpia!</div>';return;}
   list.innerHTML=arr.map(c=>{
-    var done=DONE.has(key(c));
+    var kk=key(c), kkj=kk.replace(/'/g,""), done=isDone(kk), cl=CLOSED[kk];
     var titulo=c.nom||c.veh||c.tel||'Cliente';
     return '<div class="card b-'+c.bucket+(done?' done':'')+'">'+
       '<div class="head">'+
@@ -223,19 +230,27 @@ function render(){
         '<div class="irow"><span>🛠️ Último servicio</span><b>'+esc(c.serv||'—')+'</b></div>'+
         '<div class="irow"><span>📅 Fecha del servicio</span><b>'+esc(c.fecha||'—')+'</b></div>'+
       '</div>'+
-      '<div class="ofr">💡 Ofrécele: '+esc(c.ofr||'mantenimiento')+'</div>'+
+      (cl?'<div class="closedpill">✅ Recompra cerrada · '+mny(cl.monto)+'</div>':'<div class="ofr">💡 Ofrécele: '+esc(c.ofr||'mantenimiento')+'</div>')+
       '<div class="acts">'+
         (c.tel?'<a class="b-wa" href="'+wa(c)+'" target="_blank" rel="noopener">💬 WhatsApp</a>':'')+
         (c.tel?'<a class="b-call" href="tel:'+phone(c.tel)+'">📞 Llamar</a>':'')+
-        '<button class="b-done" onclick="toggleDone(\''+key(c).replace(/'/g,"")+'\')">'+(done?'↩︎ Deshacer':'✓ Contactado')+'</button>'+
+        '<button class="b-done" onclick="toggleDone(\''+kkj+'\')">'+(done?'↩︎ Deshacer':'✓ Contacté')+'</button>'+
+        '<button class="b-close" onclick="markClosed(\''+kkj+'\')">'+(cl?'✏️ Editar $':'💰 Cerró')+'</button>'+
       '</div></div>';
   }).join('');
 }
-window.toggleDone=function(k){ if(DONE.has(k))DONE.delete(k); else DONE.add(k); localStorage.setItem(DONE_KEY,JSON.stringify([...DONE])); render(); updateKpis(); };
+window.toggleDone=function(k){ if(CONTACT[k])delete CONTACT[k]; else CONTACT[k]=todayISO(); saveCt(); render(); updateKpis(); if(FILTER==='resumen')renderResumen(); };
+window.markClosed=function(k){
+  if(CLOSED[k]){ var m=prompt('Editar monto de la recompra (vacío para quitarla):',CLOSED[k].monto); if(m===null)return;
+    if(String(m).trim()===''){delete CLOSED[k];} else {CLOSED[k]={monto:parseFloat(String(m).replace(/[^\d.]/g,''))||0,date:CLOSED[k].date||todayISO()};} }
+  else { var v=prompt('¡Cerró recompra! 🎉 ¿De cuánto fue? (solo el número)'); if(v===null)return;
+    CLOSED[k]={monto:parseFloat(String(v).replace(/[^\d.]/g,''))||0,date:todayISO()}; if(!CONTACT[k])CONTACT[k]=todayISO(); saveCt(); }
+  saveCl(); render(); updateKpis(); if(FILTER==='resumen')renderResumen();
+};
 
 function updateKpis(){
   var ya=ROWS.filter(c=>c.bucket==='ya');
-  var done=ya.filter(c=>DONE.has(key(c))).length;
+  var done=ya.filter(c=>isDone(key(c))).length;
   document.getElementById('k-pend').textContent=ya.length-done;
   document.getElementById('k-done').textContent=done;
   document.getElementById('k-tot').textContent=ROWS.length;
@@ -264,6 +279,10 @@ function renderResumen(){
   var cierre=LCFG.leadsMes>0?Math.round(s.vehMes/LCFG.leadsMes*100):null;
   var util=Math.round(s.factMes*(+LCFG.margen||0)/100);
   var op=ya*(+LCFG.ticket||0);
+  var ym=curYM();
+  var contactadosMes=Object.values(CONTACT).filter(dt=>String(dt).slice(0,7)===ym).length;
+  var cerr=Object.values(CLOSED).filter(o=>String(o.date).slice(0,7)===ym);
+  var ingRec=cerr.reduce((a,o)=>a+(+o.monto||0),0);
   el.innerHTML=
    '<h2 class="sec">🔢 Embudo de '+MES+'</h2>'+
    '<div class="lead-row">'+
@@ -288,6 +307,13 @@ function renderResumen(){
      '<label>Ticket prom. recompra ($)<input id="l-ticket" type="number" inputmode="numeric" value="'+LCFG.ticket+'" onchange="saveLeads()"></label>'+
    '</div>'+
    (LCFG.leadsMes===0?'<div class="note">💡 Escribe tus <b>leads</b> y <b>cotizaciones</b> del mes y verás tu <b>tasa de cierre</b>. Lo demás (vehículos, facturado, anticipos) sale solo de tus citas. Cuando conectemos Facebook, los leads se llenarán solos.</div>':'')+
+   '<h2 class="sec">📞 Resultados de recompra ('+MES+')</h2>'+
+   '<div class="grid4">'+
+     kpi('Clientes activos',s.unicos,'','con cita')+
+     kpi('Contactados',contactadosMes,contactadosMes>0?'green':'','este mes')+
+     kpi('Recompras cerradas',cerr.length,cerr.length>0?'green':'','este mes')+
+     kpi('Ingresos recompra',mny(ingRec),ingRec>0?'green':'','este mes')+
+   '</div>'+
    '<h2 class="sec">♻️ Clientes y recompra (histórico)</h2>'+
    '<div class="grid4">'+
      kpi('Clientes totales',s.unicos,'')+

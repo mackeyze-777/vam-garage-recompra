@@ -132,12 +132,21 @@
   </div>
 </main>
 <script>
-const SHEET_ID='1gXh_zsj0T8hJmOO03ppswEG-YX2G1rMaE8jzdDQjvCk';
-const GID='0';
-const csvUrl=()=>'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&gid='+GID+'&t='+Date.now();
+// Conectado EN VIVO a la base de citas (se actualiza solo)
+const SHEET_ID='1fT8zuEXIS63mZDDHvOLRfWW744SHrOWR_Zd4cp9Pprw';
+const csvUrl=()=>'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&t='+Date.now();
 const DONE_KEY='vam_recompra_done';
 let DONE=new Set(JSON.parse(localStorage.getItem(DONE_KEY)||'[]'));
 let ROWS=[], FILTER='ya';
+
+function digits(s){return String(s==null?'':s).replace(/\D/g,'');}
+function phonekey(s){var d=digits(s);return d.length>=10?d.slice(-10):d;}
+function parseDMY(s){var m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?{y:+m[3],mo:+m[2],da:+m[1]}:null;}
+function cadenceOf(serv){var s=(serv||'').toLowerCase();
+  if(/ceramic/.test(s))return[3,'Mantenimiento cerámico (lavado/inspección)'];
+  if(/encerado|pulido/.test(s))return[4,'Re-encerado / repulido (la cera ya se desgastó)'];
+  if(/interior/.test(s))return[3,'Re-detallado de interior'];
+  return[4,'Seguimiento de mantenimiento'];}
 
 function parseCSV(text){
   const rows=[];let row=[],cur='',q=false;
@@ -168,9 +177,7 @@ function msgFor(c){
 function wa(c){return 'https://wa.me/'+phone(c.tel)+'?text='+encodeURIComponent(msgFor(c));}
 function bucket(est){ if(/CONTACTAR YA/i.test(est))return 'ya'; if(/futura/i.test(est))return 'fut'; return 'no'; }
 function vencLabel(c){
-  if(c.bucket==='ya'){var m=(c.est.match(/\+(\d+)m/)||[])[1];
-    if(m===undefined)return 'Vencido';
-    m=+m; return m===0?'Vence este mes':'Vencido +'+m+(m===1?' mes':' meses');}
+  if(c.bucket==='ya'){var m=c.overdue||0; return m===0?'Vence este mes':'Vencido +'+m+(m===1?' mes':' meses');}
   if(c.bucket==='fut')return 'Cita futura';
   return 'Aún no toca';
 }
@@ -222,18 +229,36 @@ async function load(){
     var txt=await res.text();
     if(/<html|<!DOCTYPE/i.test(txt.slice(0,200))) throw new Error('priv');
     var rows=parseCSV(txt);
-    var hi=rows.findIndex(r=>(r[0]||'').trim()==='Estatus');
-    ROWS=[];
-    for(var i=hi+1;i<rows.length;i++){
-      var r=rows[i]; if(!r||!(r[0]||'').trim())continue;
-      var est=(r[0]||'').trim();
-      ROWS.push({est:est,bucket:bucket(est),nom:(r[1]||'').trim(),tel:(r[2]||'').trim(),veh:(r[3]||'').trim(),serv:(r[4]||'').trim(),fecha:(r[5]||'').trim(),ofr:(r[7]||'').trim()});
+    var today=new Date(), TY=today.getFullYear(), TM=today.getMonth()+1, TD=today.getDate();
+    var cli={};
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i]; if(!r)continue;
+      var fecha=(r[0]||'').trim(), nom=(r[2]||'').trim(), tel=(r[3]||'').trim(), veh=(r[4]||'').trim(), serv=(r[7]||'').trim();
+      if(fecha==='Fecha')continue;                 // encabezado
+      if(/prueba|borrar/i.test(nom))continue;       // citas de prueba
+      var d=parseDMY(fecha); if(!d)continue;
+      var k=phonekey(tel)||(nom?('n:'+nom.toLowerCase()):''); if(!k)continue;
+      var c=cli[k]||(cli[k]={nom:'',tel:'',veh:'',serv:'',d:null,dval:0,fecha:''});
+      if(nom&&!c.nom)c.nom=nom; if(tel&&!c.tel)c.tel=tel;
+      var dval=d.y*10000+d.mo*100+d.da;
+      if(dval>=c.dval){c.dval=dval;c.d=d;c.veh=veh||c.veh;c.serv=serv;c.fecha=fecha;} // última cita = la representativa
     }
+    ROWS=[];
+    for(var key2 in cli){var c=cli[key2]; if(!c.d)continue;
+      var cad=cadenceOf(c.serv);
+      var future=(c.d.y>TY)||(c.d.y===TY&&(c.d.mo>TM||(c.d.mo===TM&&c.d.da>TD)));
+      var bkt,overdue=0;
+      if(future){bkt='fut';}
+      else{var monthsSince=(TY-c.d.y)*12+(TM-c.d.mo); overdue=monthsSince-cad[0]; bkt=overdue>=0?'ya':'no';}
+      ROWS.push({nom:c.nom,tel:c.tel,veh:c.veh,serv:c.serv,fecha:c.fecha,bucket:bkt,overdue:overdue,ofr:cad[1]});
+    }
+    var ord={ya:0,no:1,fut:2};
+    ROWS.sort((a,b)=>(ord[a.bucket]-ord[b.bucket])||(b.overdue-a.overdue));
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
     updateKpis(); render();
   }catch(e){
-    document.getElementById('loading').innerHTML='<div class="error">No puedo leer tu hoja de recompra.<br><br>Compártela como <b>"Cualquier persona con el enlace · Lector"</b> y dale ↻.<br><br><a href="https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/edit" target="_blank" rel="noopener">Abrir la hoja</a></div>';
+    document.getElementById('loading').innerHTML='<div class="error">No puedo leer tu base de citas.<br><br>Compártela como <b>"Cualquier persona con el enlace · Lector"</b> y dale ↻.<br><br><a href="https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/edit" target="_blank" rel="noopener">Abrir la base de citas</a></div>';
   }
 }
 document.getElementById('nav').addEventListener('click',e=>{if(e.target.dataset.f)activate(e.target.dataset.f);});

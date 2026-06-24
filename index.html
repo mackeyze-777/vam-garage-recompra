@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>VAM Garage · Recompra</title>
+<style>
+  :root{
+    --bg:#050505; --bg2:#0c0c0c; --bg3:#131313; --border:#1e1e1e;
+    --text:#f0f0f0; --muted:#666; --muted2:#999; --accent:#e8178a;
+    --green:#27c76f; --yellow:#f0a500; --red:#e04040; --wa:#25d366;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.4;padding-bottom:40px;}
+  header{border-top:3px solid var(--accent);background:var(--bg2);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:20;border-bottom:1px solid var(--border);}
+  .logo{font-size:13px;letter-spacing:4px;font-weight:700;text-transform:uppercase;}
+  .logo small{display:block;font-size:8px;letter-spacing:2px;color:var(--muted);font-weight:500;margin-top:3px;}
+  .btn-sync{background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 13px;border-radius:8px;font-size:11px;cursor:pointer;text-transform:uppercase;letter-spacing:1px;}
+  .btn-sync:active{background:var(--accent);border-color:var(--accent);}
+  main{padding:18px;max-width:780px;margin:0 auto;}
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+  .kpi{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center;}
+  .kpi .v{font-size:24px;font-weight:800;}
+  .kpi .l{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:4px;}
+  nav{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  nav button{background:var(--bg2);border:1px solid var(--border);color:var(--muted2);padding:9px 13px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;}
+  nav button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;}
+  .card.done{opacity:.45;}
+  .card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
+  .card .nom{font-size:15px;font-weight:700;}
+  .card .veh{font-size:12px;color:var(--muted2);margin-top:2px;}
+  .badge{font-size:9px;font-weight:700;padding:4px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+  .badge.ya{background:rgba(224,64,64,.15);color:var(--red);}
+  .badge.no{background:rgba(240,165,0,.15);color:var(--yellow);}
+  .badge.fut{background:rgba(153,153,153,.15);color:var(--muted2);}
+  .meta{font-size:12px;color:var(--muted2);margin:3px 0;}
+  .ofr{font-size:12px;color:var(--accent);margin:8px 0;font-weight:600;}
+  .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .acts a,.acts button{flex:1;min-width:90px;text-align:center;border:none;border-radius:8px;padding:11px 8px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block;}
+  .b-wa{background:var(--wa);color:#04220f;}
+  .b-call{background:var(--bg3);color:var(--text);border:1px solid var(--border)!important;}
+  .b-done{background:var(--bg3);color:var(--green);border:1px solid var(--green)!important;}
+  .loading,.error{text-align:center;padding:50px 20px;color:var(--muted2);}
+  .error{color:var(--red);} .error a{color:var(--accent);}
+  .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .note{font-size:11px;color:var(--muted);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:16px;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">V A M&nbsp;&nbsp;G A R A G E<small>Recompra &amp; Seguimiento</small></div>
+  <button class="btn-sync" id="refresh">↻</button>
+</header>
+<main>
+  <div class="loading" id="loading"><div class="spinner"></div>Cargando tu lista de recompra…</div>
+  <div id="app" style="display:none">
+    <div class="kpis">
+      <div class="kpi"><div class="v" id="k-ya" style="color:var(--red)">—</div><div class="l">Contactar ya</div></div>
+      <div class="kpi"><div class="v" id="k-pend" style="color:var(--yellow)">—</div><div class="l">Pendientes hoy</div></div>
+      <div class="kpi"><div class="v" id="k-tot">—</div><div class="l">Total clientes</div></div>
+    </div>
+    <nav id="nav">
+      <button data-f="ya" class="active">🔴 Contactar ya</button>
+      <button data-f="no">🟡 Aún no toca</button>
+      <button data-f="fut">📅 Citas futuras</button>
+      <button data-f="all">Todos</button>
+    </nav>
+    <div class="note">Toca <b>💬 WhatsApp</b> y se abre el chat con el mensaje de mantenimiento ya escrito. Marca <b>✓</b> cuando lo contactes (se guarda en este dispositivo).</div>
+    <div id="list"></div>
+  </div>
+</main>
+<script>
+const SHEET_ID='1gXh_zsj0T8hJmOO03ppswEG-YX2G1rMaE8jzdDQjvCk';
+const GID='0';
+const csvUrl=()=>'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&gid='+GID+'&t='+Date.now();
+const DONE_KEY='vam_recompra_done';
+let DONE=new Set(JSON.parse(localStorage.getItem(DONE_KEY)||'[]'));
+let ROWS=[], FILTER='ya';
+
+function parseCSV(text){
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false;} else cur+=c; }
+    else{ if(c==='"')q=true; else if(c===','){row.push(cur);cur='';}
+      else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';}
+      else if(c==='\r'){} else cur+=c; }}
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows;
+}
+function phone(t){var n=String(t==null?'':t).replace(/\D/g,'');if(n.length===10)n='52'+n;return n;}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function key(c){var p=phone(c.tel);return p||('n:'+(c.nom||'').toLowerCase());}
+
+function msgFor(c){
+  var v=c.veh?(' de tu '+c.veh):'';
+  var s=(c.serv||'').toLowerCase();
+  if(/ceramic/.test(s))
+    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Te escribo de *VAM Garage*. Ya pasaron unos meses desde que protegimos'+v+' con cerámico — te toca su *mantenimiento* (lavado especial + inspección) para que siga rindiendo y conserve la garantía. ¿Te agendo esta semana? 🚗✨';
+  if(/encerado|pulido/.test(s))
+    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Soy de *VAM Garage*. Tu'+(c.veh?' '+c.veh:' vehículo')+' ya lleva unos meses desde el pulido + encerado y la cera ya se desgastó. ¿Le damos un repulido para que vuelva a brillar como nuevo? Te puedo agendar esta semana. ✨';
+  if(/interior/.test(s))
+    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 De *VAM Garage*. Ya pasó un tiempo desde el detallado de interior'+v+'. ¿Le damos otra manita para dejarlo impecable otra vez? ¿Te agendo? 🚗';
+  return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Te escribo de *VAM Garage* para dar seguimiento'+v+'. Ya te toca un mantenimiento — ¿te agendo esta semana? 🚗';
+}
+function wa(c){return 'https://wa.me/'+phone(c.tel)+'?text='+encodeURIComponent(msgFor(c));}
+
+function bucket(est){ if(/CONTACTAR YA/i.test(est))return 'ya'; if(/futura/i.test(est))return 'fut'; return 'no'; }
+
+function render(){
+  var list=document.getElementById('list');
+  var arr=ROWS.filter(c=>FILTER==='all'?true:c.bucket===FILTER);
+  // contactar ya primero, los marcados al final
+  arr.sort((a,b)=>(DONE.has(key(a))-DONE.has(key(b))));
+  if(!arr.length){list.innerHTML='<div class="error">Nada en esta sección 🎉</div>';return;}
+  list.innerHTML=arr.map(c=>{
+    var done=DONE.has(key(c));
+    var bcls=c.bucket==='ya'?'ya':c.bucket==='fut'?'fut':'no';
+    var titulo=c.nom||c.veh||c.tel||'Cliente';
+    return '<div class="card '+(done?'done':'')+'">'+
+      '<div class="top"><div><div class="nom">'+esc(titulo)+'</div>'+
+        (c.nom&&c.veh?'<div class="veh">'+esc(c.veh)+'</div>':'')+'</div>'+
+        '<span class="badge '+bcls+'">'+esc(c.est||'')+'</span></div>'+
+      '<div class="meta">Último: <b>'+esc(c.serv||'—')+'</b> · '+esc(c.fecha||'')+'</div>'+
+      '<div class="ofr">→ Ofrécele: '+esc(c.ofr||'mantenimiento')+'</div>'+
+      '<div class="acts">'+
+        (c.tel?'<a class="b-wa" href="'+wa(c)+'" target="_blank" onclick="markSoon(\''+key(c).replace(/'/g,"")+'\')">💬 WhatsApp</a>':'')+
+        (c.tel?'<a class="b-call" href="tel:'+phone(c.tel)+'">📞 Llamar</a>':'')+
+        '<button class="b-done" onclick="toggleDone(\''+key(c).replace(/'/g,"")+'\')">'+(done?'↩︎ Deshacer':'✓ Contactado')+'</button>'+
+      '</div></div>';
+  }).join('');
+}
+window.markSoon=function(){};
+window.toggleDone=function(k){ if(DONE.has(k))DONE.delete(k); else DONE.add(k); localStorage.setItem(DONE_KEY,JSON.stringify([...DONE])); render(); updateKpis(); };
+
+function updateKpis(){
+  var ya=ROWS.filter(c=>c.bucket==='ya');
+  var pend=ya.filter(c=>!DONE.has(key(c)));
+  document.getElementById('k-ya').textContent=ya.length;
+  document.getElementById('k-pend').textContent=pend.length;
+  document.getElementById('k-tot').textContent=ROWS.length;
+}
+function activate(f){ FILTER=f; document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.f===f)); render(); }
+
+async function load(){
+  try{
+    var res=await fetch(csvUrl(),{cache:'no-store'});
+    var txt=await res.text();
+    if(/<html|<!DOCTYPE/i.test(txt.slice(0,200))) throw new Error('priv');
+    var rows=parseCSV(txt);
+    // localizar encabezado
+    var hi=rows.findIndex(r=>(r[0]||'').trim()==='Estatus');
+    ROWS=[];
+    for(var i=hi+1;i<rows.length;i++){
+      var r=rows[i]; if(!r||!(r[0]||'').trim())continue;
+      var est=(r[0]||'').trim();
+      ROWS.push({est:est,bucket:bucket(est),nom:(r[1]||'').trim(),tel:(r[2]||'').trim(),veh:(r[3]||'').trim(),serv:(r[4]||'').trim(),fecha:(r[5]||'').trim(),ofr:(r[7]||'').trim()});
+    }
+    document.getElementById('loading').style.display='none';
+    document.getElementById('app').style.display='block';
+    updateKpis(); render();
+  }catch(e){
+    document.getElementById('loading').innerHTML='<div class="error">No puedo leer tu hoja de recompra.<br><br>Compártela como <b>"Cualquier persona con el enlace · Lector"</b> y dale ↻.<br><br><a href="https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/edit" target="_blank">Abrir la hoja</a></div>';
+    document.getElementById('loading').style.display='block';
+    document.getElementById('app').style.display='none';
+  }
+}
+document.getElementById('nav').addEventListener('click',e=>{if(e.target.dataset.f)activate(e.target.dataset.f);});
+document.getElementById('refresh').addEventListener('click',load);
+load();
+</script>
+</body>
+</html>

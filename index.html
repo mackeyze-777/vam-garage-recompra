@@ -99,6 +99,22 @@
   @keyframes spin{to{transform:rotate(360deg);}}
   @media(max-width:430px){.acts a,.acts button{min-width:0;}}
   @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;}}
+  /* RESUMEN */
+  .sec{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted2);font-weight:700;margin:24px 0 11px;}
+  .sec:first-child{margin-top:2px;}
+  .grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .kpi .ks{font-size:8.5px;color:var(--muted);margin-top:4px;letter-spacing:.02em;}
+  .kpi .v{font-size:24px;}
+  .lead-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .lead-row label{flex:1;min-width:140px;display:flex;flex-direction:column;gap:5px;font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted2);font-weight:600;}
+  .lead-row input{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px;font-size:17px;font-weight:700;width:100%;font-variant-numeric:tabular-nums;}
+  .lead-row input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(232,23,138,.25);}
+  .bigcard{background:linear-gradient(135deg,rgba(232,23,138,.16),var(--bg2));border:1px solid rgba(232,23,138,.32);border-radius:18px;padding:20px;text-align:center;}
+  .bigcard .big{font-size:32px;font-weight:800;color:#ffaedb;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;}
+  .bigcard .sub{font-size:12px;color:var(--muted2);margin-top:8px;line-height:1.45;}
+  @media(min-width:560px){.grid4{grid-template-columns:repeat(4,1fr);}}
 </style>
 </head>
 <body>
@@ -112,22 +128,26 @@
 <main>
   <div class="loading" id="loading"><div class="spinner"></div>Cargando tu lista de recompra…</div>
   <div id="app" style="display:none">
-    <div class="kpis">
-      <div class="kpi"><div class="v" id="k-pend" style="color:var(--red)">—</div><div class="l">Por contactar</div></div>
-      <div class="kpi"><div class="v" id="k-done" style="color:var(--green)">—</div><div class="l">Ya contactados</div></div>
-      <div class="kpi"><div class="v" id="k-tot">—</div><div class="l">Clientes totales</div></div>
-    </div>
-    <div class="prog">
-      <div class="lbl"><span class="t">Avance de recompra</span><span><b id="p-done">0</b> / <span id="p-ya">0</span></span></div>
-      <div class="pbar"><i id="p-bar" style="width:0%"></i></div>
-    </div>
     <nav id="nav">
-      <button data-f="ya" class="active">🔴 Contactar ya</button>
+      <button data-f="resumen" class="active">📊 Resumen</button>
+      <button data-f="ya">🔴 Contactar ya</button>
       <button data-f="no">🟡 Aún no toca</button>
       <button data-f="fut">📅 Futuras</button>
       <button data-f="all">Todos</button>
     </nav>
-    <div class="note">Toca <b>💬 WhatsApp</b> y se abre el chat con el mensaje de mantenimiento ya escrito. Marca <b>✓ Contactado</b> al terminar — se guarda en este dispositivo y baja en la lista.</div>
+    <div id="recompraTop" style="display:none">
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="k-pend" style="color:var(--red)">—</div><div class="l">Por contactar</div></div>
+        <div class="kpi"><div class="v" id="k-done" style="color:var(--green)">—</div><div class="l">Ya contactados</div></div>
+        <div class="kpi"><div class="v" id="k-tot">—</div><div class="l">Clientes totales</div></div>
+      </div>
+      <div class="prog">
+        <div class="lbl"><span class="t">Avance de recompra</span><span><b id="p-done">0</b> / <span id="p-ya">0</span></span></div>
+        <div class="pbar"><i id="p-bar" style="width:0%"></i></div>
+      </div>
+    </div>
+    <div id="resumen"></div>
+    <div class="note" id="listnote" style="display:none">Toca <b>💬 WhatsApp</b> y se abre el chat con el mensaje de mantenimiento ya escrito. Marca <b>✓ Contactado</b> al terminar — se guarda en este dispositivo y baja en la lista.</div>
     <div id="list"></div>
   </div>
 </main>
@@ -137,7 +157,9 @@ const SHEET_ID='1fT8zuEXIS63mZDDHvOLRfWW744SHrOWR_Zd4cp9Pprw';
 const csvUrl=()=>'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&t='+Date.now();
 const DONE_KEY='vam_recompra_done';
 let DONE=new Set(JSON.parse(localStorage.getItem(DONE_KEY)||'[]'));
-let ROWS=[], FILTER='ya';
+let ROWS=[], FILTER='resumen', STATS={estado:{}};
+const LK='vam_recompra_leads';
+let LCFG=Object.assign({leadsMes:0,cotiz:0,margen:60,ticket:1500},JSON.parse(localStorage.getItem(LK)||'{}'));
 
 function digits(s){return String(s==null?'':s).replace(/\D/g,'');}
 function phonekey(s){var d=digits(s);return d.length>=10?d.slice(-10):d;}
@@ -221,8 +243,73 @@ function updateKpis(){
   document.getElementById('p-ya').textContent=ya.length;
   document.getElementById('p-bar').style.width=(ya.length?Math.round(done/ya.length*100):0)+'%';
 }
-function activate(f){ FILTER=f; document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.f===f)); render(); }
+function mny(n){return '$'+Math.round(n||0).toLocaleString('es-MX');}
+function kpi(label,val,color,sub){
+  var c=color==='green'?'var(--green)':color==='red'?'var(--red)':color==='yellow'?'var(--yellow)':'var(--text)';
+  return '<div class="kpi"><div class="v" style="color:'+c+'">'+val+'</div><div class="l">'+label+'</div>'+(sub?'<div class="ks">'+sub+'</div>':'')+'</div>';
+}
+window.saveLeads=function(){
+  LCFG.leadsMes=+document.getElementById('l-mes').value||0;
+  LCFG.cotiz=+document.getElementById('l-cot').value||0;
+  LCFG.margen=+document.getElementById('l-mg').value||0;
+  LCFG.ticket=+document.getElementById('l-ticket').value||0;
+  localStorage.setItem(LK,JSON.stringify(LCFG));
+  renderResumen();
+};
+function renderResumen(){
+  var s=STATS, el=document.getElementById('resumen');
+  var MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][new Date().getMonth()];
+  var ya=ROWS.filter(c=>c.bucket==='ya').length;
+  var rec=s.unicos?Math.round(s.repiten/s.unicos*100):0;
+  var cierre=LCFG.leadsMes>0?Math.round(s.vehMes/LCFG.leadsMes*100):null;
+  var util=Math.round(s.factMes*(+LCFG.margen||0)/100);
+  var op=ya*(+LCFG.ticket||0);
+  el.innerHTML=
+   '<h2 class="sec">🔢 Embudo de '+MES+'</h2>'+
+   '<div class="lead-row">'+
+     '<label>Leads que llegaron<input id="l-mes" type="number" inputmode="numeric" value="'+LCFG.leadsMes+'" onchange="saveLeads()"></label>'+
+     '<label>Cotizaciones que mandé<input id="l-cot" type="number" inputmode="numeric" value="'+LCFG.cotiz+'" onchange="saveLeads()"></label>'+
+   '</div>'+
+   '<div class="grid4">'+
+     kpi('Leads',LCFG.leadsMes||'—','','los escribes ↑')+
+     kpi('Cotizaciones',LCFG.cotiz||'—','','las escribes ↑')+
+     kpi('Vehículos entraron',s.vehMes,'green','citas confirmadas')+
+     kpi('% de cierre',cierre==null?'—':cierre+'%',cierre==null?'':(cierre>=20?'green':'yellow'),'vehículos ÷ leads')+
+   '</div>'+
+   '<h2 class="sec">💵 Dinero de '+MES+'</h2>'+
+   '<div class="grid4">'+
+     kpi('Facturado',mny(s.factMes),'green','precios capturados')+
+     kpi('Anticipos',mny(s.antMes),'','recibidos')+
+     kpi('Ticket promedio',mny(s.ticket),'','por vehículo')+
+     kpi('Utilidad estim.',util?mny(util):'—',util?'green':'',(LCFG.margen||0)+'% margen')+
+   '</div>'+
+   '<div class="lead-row">'+
+     '<label>Margen % (para utilidad)<input id="l-mg" type="number" inputmode="numeric" value="'+LCFG.margen+'" onchange="saveLeads()"></label>'+
+     '<label>Ticket prom. recompra ($)<input id="l-ticket" type="number" inputmode="numeric" value="'+LCFG.ticket+'" onchange="saveLeads()"></label>'+
+   '</div>'+
+   (LCFG.leadsMes===0?'<div class="note">💡 Escribe tus <b>leads</b> y <b>cotizaciones</b> del mes y verás tu <b>tasa de cierre</b>. Lo demás (vehículos, facturado, anticipos) sale solo de tus citas. Cuando conectemos Facebook, los leads se llenarán solos.</div>':'')+
+   '<h2 class="sec">♻️ Clientes y recompra (histórico)</h2>'+
+   '<div class="grid4">'+
+     kpi('Clientes totales',s.unicos,'')+
+     kpi('% Recompra',rec+'%',rec>=15?'green':'yellow','repiten')+
+     kpi('A contactar ya',ya,ya>0?'red':'green','vencidos')+
+     kpi('Citas totales',s.citasTot,'')+
+   '</div>'+
+   '<h2 class="sec">💰 Oportunidad dormida</h2>'+
+   '<div class="bigcard"><div class="big">'+mny(op)+'</div><div class="sub">'+ya+' clientes esperando recompra × '+mny(+LCFG.ticket||0)+' de ticket</div></div>'+
+   (s.servTop?'<div class="note" style="margin-top:14px">🏆 Servicio más agendado: <b>'+esc(s.servTop)+'</b></div>':'');
+}
+function activate(f){ FILTER=f;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.f===f));
+  var R=(f==='resumen');
+  document.getElementById('resumen').style.display=R?'block':'none';
+  document.getElementById('listnote').style.display=R?'none':'block';
+  document.getElementById('list').style.display=R?'none':'block';
+  document.getElementById('recompraTop').style.display=R?'none':'block';
+  if(R)renderResumen(); else render();
+}
 
+function money2(x){var n=parseFloat(String(x==null?'':x).replace(/[^\d.]/g,''));return isNaN(n)?0:n;}
 async function load(){
   try{
     var res=await fetch(csvUrl(),{cache:'no-store'});
@@ -230,21 +317,30 @@ async function load(){
     if(/<html|<!DOCTYPE/i.test(txt.slice(0,200))) throw new Error('priv');
     var rows=parseCSV(txt);
     var today=new Date(), TY=today.getFullYear(), TM=today.getMonth()+1, TD=today.getDate();
-    var cli={};
+    var cli={}, rawN=0,mesN=0,vehMes=0,factMes=0,antMes=0,ticketCount=0, est0={conf:0,comp:0,canc:0,pend:0}, servC={};
     for(var i=0;i<rows.length;i++){
       var r=rows[i]; if(!r)continue;
-      var fecha=(r[0]||'').trim(), nom=(r[2]||'').trim(), tel=(r[3]||'').trim(), veh=(r[4]||'').trim(), serv=(r[7]||'').trim();
+      var fecha=(r[0]||'').trim(), nom=(r[2]||'').trim(), tel=(r[3]||'').trim(), veh=(r[4]||'').trim(), serv=(r[7]||'').trim(), est=(r[8]||'').trim().toLowerCase(), precio=money2(r[9]), ant=money2(r[10]);
       if(fecha==='Fecha')continue;                 // encabezado
       if(/prueba|borrar/i.test(nom))continue;       // citas de prueba
       var d=parseDMY(fecha); if(!d)continue;
+      rawN++;
+      var esMes=(d.y===TY&&d.mo===TM);
+      if(/confirm/.test(est))est0.conf++; else if(/complet/.test(est))est0.comp++; else if(/cancel/.test(est))est0.canc++; else if(/pend/.test(est))est0.pend++;
+      if(serv)servC[serv]=(servC[serv]||0)+1;
+      if(esMes){ mesN++;
+        if(/confirm|complet/.test(est))vehMes++;
+        if(precio>0){factMes+=precio;ticketCount++;}
+        if(ant>0)antMes+=ant; }
       var k=phonekey(tel)||(nom?('n:'+nom.toLowerCase()):''); if(!k)continue;
-      var c=cli[k]||(cli[k]={nom:'',tel:'',veh:'',serv:'',d:null,dval:0,fecha:''});
+      var c=cli[k]||(cli[k]={nom:'',tel:'',veh:'',serv:'',d:null,dval:0,fecha:'',n:0});
+      c.n++;
       if(nom&&!c.nom)c.nom=nom; if(tel&&!c.tel)c.tel=tel;
       var dval=d.y*10000+d.mo*100+d.da;
       if(dval>=c.dval){c.dval=dval;c.d=d;c.veh=veh||c.veh;c.serv=serv;c.fecha=fecha;} // última cita = la representativa
     }
-    ROWS=[];
-    for(var key2 in cli){var c=cli[key2]; if(!c.d)continue;
+    ROWS=[]; var repiten=0;
+    for(var key2 in cli){var c=cli[key2]; if(c.n>1)repiten++; if(!c.d)continue;
       var cad=cadenceOf(c.serv);
       var future=(c.d.y>TY)||(c.d.y===TY&&(c.d.mo>TM||(c.d.mo===TM&&c.d.da>TD)));
       var bkt,overdue=0;
@@ -254,9 +350,11 @@ async function load(){
     }
     var ord={ya:0,no:1,fut:2};
     ROWS.sort((a,b)=>(ord[a.bucket]-ord[b.bucket])||(b.overdue-a.overdue));
+    var servTop='',mx=0; for(var sN in servC){if(servC[sN]>mx){mx=servC[sN];servTop=sN;}}
+    STATS={citasTot:rawN,citasMes:mesN,vehMes:vehMes,factMes:factMes,antMes:antMes,ticket:ticketCount?Math.round(factMes/ticketCount):0,estado:est0,unicos:Object.keys(cli).length,repiten:repiten,servTop:servTop};
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='block';
-    updateKpis(); render();
+    updateKpis(); activate(FILTER);
   }catch(e){
     document.getElementById('loading').innerHTML='<div class="error">No puedo leer tu base de citas.<br><br>Compártela como <b>"Cualquier persona con el enlace · Lector"</b> y dale ↻.<br><br><a href="https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/edit" target="_blank" rel="noopener">Abrir la base de citas</a></div>';
   }

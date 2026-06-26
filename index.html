@@ -193,15 +193,17 @@ function key(c){var p=phone(c.tel);return p||('n:'+(c.nom||'').toLowerCase());}
 function initial(c){var t=(c.nom||c.veh||'?').trim();return (t[0]||'?').toUpperCase();}
 
 function msgFor(c){
+  var n=c.nom?(' '+c.nom):'';
   var v=c.veh?(' de tu '+c.veh):'';
+  var veh=c.veh?(' tu '+c.veh):' tu vehículo';
   var s=(c.serv||'').toLowerCase();
-  if(/ceramic/.test(s))
-    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Te escribo de *VAM Garage*. Ya pasaron unos meses desde que protegimos'+v+' con cerámico — te toca su *mantenimiento* (lavado especial + inspección) para que siga rindiendo y conserve la garantía. ¿Te agendo esta semana? 🚗✨';
-  if(/encerado|pulido/.test(s))
-    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Soy de *VAM Garage*. Tu'+(c.veh?' '+c.veh:' vehículo')+' ya lleva unos meses desde el pulido + encerado y la cera ya se desgastó. ¿Le damos un repulido para que vuelva a brillar como nuevo? Te puedo agendar esta semana. ✨';
-  if(/interior/.test(s))
-    return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 De *VAM Garage*. Ya pasó un tiempo desde el detallado de interior'+v+'. ¿Le damos otra manita para dejarlo impecable otra vez? ¿Te agendo? 🚗';
-  return 'Hola'+(c.nom?' '+c.nom:'')+'! 👋 Te escribo de *VAM Garage* para dar seguimiento'+v+'. Ya te toca un mantenimiento — ¿te agendo esta semana? 🚗';
+  if(/ceramic|cerám/.test(s))
+    return 'Hola'+n+'! 👋 Te saluda *VAM Garage*. Hace unos meses te aplicamos el *cerámico*'+v+' y ya le toca su *mantenimiento*: lavado especial + revisión de la capa, para que siga repeliendo el agua, conserve el brillo y no se pierda la garantía. 🛡️\n\nLos clientes que le dan su mantenimiento a tiempo conservan el cerámico mucho más. ¿Te aparto un lugar esta semana? Dime qué día te queda mejor. 🚗✨';
+  if(/encerado|pulido|correc/.test(s))
+    return 'Hola'+n+'! 👋 Aquí *VAM Garage*. Ya pasaron unos meses desde que pulimos y enceramos'+veh+', y la cera ya cumplió su ciclo (dura ~4 meses). Sin protección la pintura se opaca y agarra rayones más fácil. ✨\n\nTe propongo un *repulido + encerado* para devolverle el brillo y volver a protegerla. ¿Te lo agendo esta semana? ¿Qué día puedes? 🚗';
+  if(/interior|vestidura/.test(s))
+    return 'Hola'+n+'! 👋 Te escribe *VAM Garage*. Ya tiene rato desde el detallado de interior'+v+' y el uso diario va dejando su marca. 🧽\n\n¿Le damos otra manita para dejarlo como nuevo otra vez? Te lo dejamos impecable y oliendo a limpio. ¿Te aparto un día esta semana? 🚗';
+  return 'Hola'+n+'! 👋 Te saluda *VAM Garage*. Ya pasó un tiempo desde tu último servicio'+v+' y queremos que'+veh+' siga impecable. Ya te toca tu mantenimiento. ¿Te aparto un lugar esta semana? Dime qué día te acomoda. 🚗✨';
 }
 function wa(c){return 'https://wa.me/'+phone(c.tel)+'?text='+encodeURIComponent(msgFor(c));}
 function bucket(est){ if(/CONTACTAR YA/i.test(est))return 'ya'; if(/futura/i.test(est))return 'fut'; return 'no'; }
